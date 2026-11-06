@@ -43,6 +43,31 @@ go run ./cmd/tenderguide load --dir ./testdata --db /tmp/tenderguide.db
 
 Повторный запуск с тем же `request_id` → exit `1`, `duplicate request_id`, БД не меняется.
 
+### `show` — вывести заявку из SQLite
+
+```
+tenderguide show --request <id> [--db <path>] [--format text|json]
+```
+
+| Флаг | Обязательный | По умолчанию | Описание |
+|---|---|---|---|
+| `--request` | да | — | `request_id` заявки (имя директории при `load`) |
+| `--db` | нет | `./tenderguide.db` | путь к файлу SQLite |
+| `--format` | нет | `text` | `text` или `json` |
+
+Пример:
+
+```bash
+go run ./cmd/tenderguide show --request testdata --db /tmp/tenderguide.db
+# === Заявка ===
+# ID:                 testdata
+# ...
+
+go run ./cmd/tenderguide show --request testdata --db /tmp/tenderguide.db --format json
+```
+
+В формате `text` `NULL`-поля выводятся как `—`, пустые секции — с пометкой `(нет)`.
+
 ## Что извлекается
 
 Поля группируются по таблицам.
@@ -154,6 +179,6 @@ sqlite3 /tmp/tenderguide.db "PRAGMA table_info(participants);"
 - PDF, XLSX, сканы, OCR.
 - Проверки 44-ФЗ / 223-ФЗ, свежесть справок, сверка ТЗ и спецификации.
 - Несколько заявок за один запуск.
-- Подкоманды `list`, `show`, `export`.
+- Подкоманды `list`, `export`.
 - Миграции (схема создаётся через `CREATE TABLE IF NOT EXISTS`).
 - REST/gRPC API, UI.

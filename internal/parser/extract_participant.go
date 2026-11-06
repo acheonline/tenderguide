@@ -22,19 +22,22 @@ var (
 	reOKPO        = regexp.MustCompile(`ОКПО\s+Участника\s+(\d+)`)
 	reOKTMO       = regexp.MustCompile(`ОКТМО\s+Участника\s+(\d+)`)
 	reOKOPF       = regexp.MustCompile(`ОКОПФ\s+Участника\s+(\d+)`)
-	reOKOPFName   = regexp.MustCompile(`Организационно-правовая форма\s+([^\n]+?)(?:\s+\d+\.|$)`)
-	reLegalAddr   = regexp.MustCompile(`Юридический адрес\s+(.+?)(?:\s+\d+\.|$)`)
-	rePostalAddr  = regexp.MustCompile(`Почтовый адрес\s+(.+?)(?:\s+\d+\.|$)`)
-	reEGRULCert   = regexp.MustCompile(`серия\s+\d+\s+№\s*\d+`)
-	reEGRULAuth   = regexp.MustCompile(`Инспекция[^\n]+`)
-	reTaxAuth    = regexp.MustCompile(`(?:МЕЖРАЙОННАЯ|Межрайонная|ИФНС|Инспекция)[^\n]+`)
-	reBranches    = regexp.MustCompile(`Филиалы\s+(\S+)`)
-	rePhoneMarker = regexp.MustCompile(`Телефоны\s+Участника\s+(.+)`)
-	reFaxMarker   = regexp.MustCompile(`Факс\s+(.+)`)
-	reDirectorFIO = regexp.MustCompile(`ФИО\s+руководителя\s+(.+)`)
-	reChiefFIO    = regexp.MustCompile(`ФИО\s+главного\s+бухгалтера\s+(.+)`)
-	reRespFIO     = regexp.MustCompile(`ФИО\s+ответственного\s+лица\s+(.+)`)
-	reOKVED       = regexp.MustCompile(`(\d{2}\.\d{2})\s+(.+)`)
+	reOKOPFName   = regexp.MustCompile(`Организационно-правовая форма и фирменное наименование Участника\s+(.+)`)
+	reLegalAddr   = regexp.MustCompile(`Юридический адрес\s+(.+)`)
+	rePostalAddr  = regexp.MustCompile(`Почтовый адрес\s+(.+)`)
+	reEGRULCert   = regexp.MustCompile(`серия\s+(\d+)\s+№\s*(\d+)`)
+	reEGRULAuth   = regexp.MustCompile(`Свидетельство о внесении[^,]*,[^,]*,?\s*([А-ЯЁ][^,\n]+)`)
+	reEGRULDate   = regexp.MustCompile(`Свидетельство о внесении в Единый государственный реестр[^,]*,\s*(\d{2}\.\d{2}\.\d{4})`)
+	reTaxAuth     = regexp.MustCompile(`КПП:\s*\d+[^А-ЯЁ]*([А-ЯЁ][^\n.]+)`)
+	reTaxRegDate  = regexp.MustCompile(`Дата постановки на учет[^\d]*(\d{2}\.\d{2}\.\d{4})`)
+	reBranches    = regexp.MustCompile(`Филиалы:[^\n]*(нет|да)`)
+	rePhoneMarker = regexp.MustCompile(`Телефоны\s+Участника[^\d]*(\+?[\d\s()\-]+)`)
+	reFaxMarker   = regexp.MustCompile(`Факс\s+Участника[^\d]*([\d\s()\-]+|нет)`)
+	reDirectorFIO = regexp.MustCompile(`Фамилия, Имя и Отчество руководителя[^\n]*?(Генеральный директор|Директор)\s+([А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+)`)
+	reChiefFIO    = regexp.MustCompile(`Фамилия, Имя и Отчество главного бухгалтера\s+(.+)`)
+	reRespFIO     = regexp.MustCompile(`Фамилия, Имя и Отчество ответственного лица[^\n]*?(Генеральный директор|Директор)\s+([А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+)[^\d]*(\+?[\d\s()\-]+)`)
+	reEmailSite   = regexp.MustCompile(`Адрес электронной почты Участника, сайт Участника\s+(.+)`)
+	reOKVED       = regexp.MustCompile(`(\d{2}\.\d{2})\s*-\s*(.+)`)
 )
 
 func extractParticipant(inputs []Input) *model.Participant {
@@ -98,7 +101,7 @@ func extractParticipant(inputs []Input) *model.Participant {
 						}
 					}
 					if out.EGRULCertificate == nil {
-						if m := regexp.MustCompile(`серия\s+\d+\s+№\s*\d+`).FindString(val); m != "" {
+						if m := reEGRULCert.FindString(val); m != "" {
 							out.EGRULCertificate = &m
 						}
 					}
@@ -199,18 +202,39 @@ func fillFromMergedCell(out *model.Participant, p string) {
 		}
 	}
 	if out.EGRULCertificate == nil {
-		if m := reEGRULCert.FindString(p); m != "" {
-			out.EGRULCertificate = &m
+		if m := reEGRULCert.FindStringSubmatch(p); m != nil {
+			v := "серия " + m[1] + " № " + m[2]
+			out.EGRULCertificate = &v
+		}
+	}
+	if out.EGRULRegistrationDate == nil {
+		if m := reEGRULDate.FindStringSubmatch(p); m != nil {
+			if d := normalizeDotDate(m[1]); d != nil {
+				out.EGRULRegistrationDate = d
+			}
 		}
 	}
 	if out.EGRULRegistrationAuthority == nil {
-		if m := reEGRULAuth.FindString(p); m != "" {
-			out.EGRULRegistrationAuthority = &m
+		if m := reEGRULAuth.FindStringSubmatch(p); m != nil {
+			v := strings.TrimSpace(m[1])
+			if v != "" {
+				out.EGRULRegistrationAuthority = &v
+			}
+		}
+	}
+	if out.TaxRegistrationDateCurrent == nil {
+		if m := reTaxRegDate.FindStringSubmatch(p); m != nil {
+			if d := normalizeDotDate(m[1]); d != nil {
+				out.TaxRegistrationDateCurrent = d
+			}
 		}
 	}
 	if out.TaxAuthorityCurrent == nil {
-		if m := reTaxAuth.FindString(p); m != "" {
-			out.TaxAuthorityCurrent = &m
+		if m := reTaxAuth.FindStringSubmatch(p); m != nil {
+			v := strings.TrimSpace(m[1])
+			if v != "" {
+				out.TaxAuthorityCurrent = &v
+			}
 		}
 	}
 	if out.HasBranches == nil {
@@ -235,17 +259,29 @@ func fillFromMergedCell(out *model.Participant, p string) {
 			}
 		}
 	}
-	if out.DirectorName == nil {
-		if m := reDirectorFIO.FindStringSubmatch(p); m != nil {
-			if fio := reFIO.FindString(m[1]); fio != "" {
-				out.DirectorName = &fio
+	if out.Email == nil || out.Website == nil {
+		if m := reEmailSite.FindStringSubmatch(p); m != nil {
+			if out.Email == nil {
+				if e := reEmail.FindString(m[1]); e != "" {
+					out.Email = &e
+				}
+			}
+			if out.Website == nil {
+				if w := reWebsite.FindString(m[1]); w != "" {
+					out.Website = &w
+				}
 			}
 		}
 	}
-	if out.DirectorPosition == nil {
+	if out.DirectorName == nil || out.DirectorPosition == nil {
 		if m := reDirectorFIO.FindStringSubmatch(p); m != nil {
-			if pos := reDirectorPos.FindString(m[1]); pos != "" {
+			if out.DirectorPosition == nil {
+				pos := m[1]
 				out.DirectorPosition = &pos
+			}
+			if out.DirectorName == nil {
+				fio := m[2]
+				out.DirectorName = &fio
 			}
 		}
 	}
@@ -256,17 +292,16 @@ func fillFromMergedCell(out *model.Participant, p string) {
 			}
 		}
 	}
-	if out.ResponsiblePersonName == nil {
+	if out.ResponsiblePersonName == nil || out.ResponsiblePersonPhone == nil {
 		if m := reRespFIO.FindStringSubmatch(p); m != nil {
-			if fio := reFIO.FindString(m[1]); fio != "" {
+			if out.ResponsiblePersonName == nil {
+				fio := m[2]
 				out.ResponsiblePersonName = &fio
 			}
-		}
-	}
-	if out.ResponsiblePersonPhone == nil {
-		if m := reRespFIO.FindStringSubmatch(p); m != nil {
-			if v := normalizePhone(m[1]); v != nil {
-				out.ResponsiblePersonPhone = v
+			if out.ResponsiblePersonPhone == nil {
+				if v := normalizePhone(m[3]); v != nil {
+					out.ResponsiblePersonPhone = v
+				}
 			}
 		}
 	}
@@ -323,6 +358,20 @@ func fillFromText(out *model.Participant, p string) {
 	if out.Website == nil {
 		if m := reWebsite.FindString(p); m != "" {
 			out.Website = &m
+		}
+	}
+	if out.PrimaryOKVED == nil || out.PrimaryOKVEDName == nil {
+		if m := reOKVED.FindStringSubmatch(p); m != nil {
+			if out.PrimaryOKVED == nil {
+				v := m[1]
+				out.PrimaryOKVED = &v
+			}
+			if out.PrimaryOKVEDName == nil {
+				v := strings.TrimSpace(m[2])
+				if v != "" {
+					out.PrimaryOKVEDName = &v
+				}
+			}
 		}
 	}
 }

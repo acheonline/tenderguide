@@ -7,33 +7,39 @@ import (
 	"github.com/acheonline/tenderguide/internal/model"
 )
 
-var rePassport = regexp.MustCompile(`\d{4}\s*\d{6}`)
+var (
+	reINN12    = regexp.MustCompile(`\b\d{12}\b`)
+	rePassport = regexp.MustCompile(`\b\d{4}\s*\d{6}\b`)
+	reFIO3     = regexp.MustCompile(`[А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+`)
+)
 
 func extractBeneficiaries(inputs []Input) []*model.Beneficiary {
 	var out []*model.Beneficiary
 	for _, in := range inputs {
 		for _, tbl := range in.Tables {
+			// Таблица формы 8: в одной из ячеек есть "Руководитель/Участник" и ИНН12.
 			for _, row := range tbl {
-				if len(row.Cells) < 3 {
+				if len(row.Cells) == 0 {
 					continue
 				}
-				// Ищем строку бенефициара: в ячейках есть ФИО и ИНН 12 цифр.
 				joined := strings.Join(row.Cells, " ")
-				if !regexp.MustCompile(`[А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+`).MatchString(joined) {
+				if !strings.Contains(joined, "Руководитель") && !strings.Contains(joined, "Участник") {
 					continue
 				}
-				if !reINN12.MatchString(joined) && !rePassport.MatchString(joined) {
+				if !reINN12.MatchString(joined) {
 					continue
 				}
 				b := &model.Beneficiary{}
 				if m := reINN12.FindString(joined); m != "" {
 					b.INN = &m
 				}
-				if m := rePassport.FindString(joined); m != "" {
-					b.Passport = &m
+				// ФИО бенефициара — последнее ФИО в строке (руководитель идёт раньше).
+				fios := reFIO3.FindAllString(joined, -1)
+				if len(fios) > 0 {
+					fn := fios[len(fios)-1]
+					b.FullName = &fn
 				}
-				// Роль.
-				if strings.Contains(joined, "Руководитель") {
+				if strings.Contains(joined, "Руководитель/Участник") {
 					r := "Руководитель/Участник"
 					b.Role = &r
 				}

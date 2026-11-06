@@ -7,10 +7,10 @@ func TestExtractStaffSummary(t *testing.T) {
 		{
 			Tables: [][]Row{
 				{
-					Row{Cells: []string{"Руководящее звено", "2", "1"}},
-					Row{Cells: []string{"Специалисты", "6", "4"}},
-					Row{Cells: []string{"Рабочие", "0", "0"}},
-					Row{Cells: []string{"ИТОГО:", "8", "5"}},
+					Row{Cells: []string{"Руководящее звено (руководитель и его заместители), чел. 2 1"}},
+					Row{Cells: []string{"Специалисты (в том числе инженеры), чел. 6 4"}},
+					Row{Cells: []string{"Рабочие и вспомогательный персонал 0 0"}},
+					Row{Cells: []string{"ИТОГО: 8 5"}},
 				},
 			},
 		},
@@ -19,13 +19,16 @@ func TestExtractStaffSummary(t *testing.T) {
 	if got == nil {
 		t.Fatal("summary = nil")
 	}
-	if got.ManagersCount == nil || *got.ManagersCount != 1 {
+	if got.ManagersCount == nil || *got.ManagersCount != 2 {
 		t.Fatalf("managers = %v", got.ManagersCount)
 	}
-	if got.SpecialistsCount == nil || *got.SpecialistsCount != 4 {
+	if got.SpecialistsCount == nil || *got.SpecialistsCount != 6 {
 		t.Fatalf("specialists = %v", got.SpecialistsCount)
 	}
-	if got.TotalStaff == nil || *got.TotalStaff != 5 {
+	if got.WorkersCount == nil || *got.WorkersCount != 0 {
+		t.Fatalf("workers = %v", got.WorkersCount)
+	}
+	if got.TotalStaff == nil || *got.TotalStaff != 8 {
 		t.Fatalf("total = %v", got.TotalStaff)
 	}
 }
@@ -36,9 +39,9 @@ func TestExtractStaffMembers(t *testing.T) {
 			Tables: [][]Row{
 				{
 					Row{Cells: []string{"Руководящее звено"}},
-					Row{Cells: []string{"1.", "Дубинович И.В., заместитель генерального директора", "ФГБОУ ВО ...", "3"}},
-					Row{Cells: []string{"Специалисты"}},
-					Row{Cells: []string{"1.", "Кудрявцев Д.А., руководитель направления", "ФГБОУ ...", "6"}},
+					Row{Cells: []string{"1. Дубинович И.В., заместитель генерального директора ФГБОУ ВО «УрГПУ», 2001, «Физика» 3"}},
+					Row{Cells: []string{"Специалисты (в том числе исполнители)"}},
+					Row{Cells: []string{"1. Кудрявцев Д.А., руководитель направления по информационной безопасности ФГБОУ ВО «ИТМО» 6"}},
 				},
 			},
 		},

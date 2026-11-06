@@ -1,10 +1,16 @@
 package parser
 
 import (
+	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/acheonline/tenderguide/internal/model"
+)
+
+var (
+	reSummaryRow = regexp.MustCompile(`^(.+?)\s+(\d+)\s+(\d+)\s*$`)
+	reMemberNum  = regexp.MustCompile(`^(\d+)\.\s*(.+)$`)
 )
 
 func extractStaffSummary(inputs []Input) *model.StaffSummary {
@@ -13,26 +19,31 @@ func extractStaffSummary(inputs []Input) *model.StaffSummary {
 			out := &model.StaffSummary{}
 			hasAny := false
 			for _, row := range tbl {
-				if len(row.Cells) < 2 {
+				if len(row.Cells) == 0 {
 					continue
 				}
-				joined := strings.Join(row.Cells, " ")
-				last := strings.TrimSpace(row.Cells[len(row.Cells)-1])
-				n, err := strconv.ParseInt(onlyDigits(last), 10, 64)
+				text := strings.Join(row.Cells, " ")
+				text = strings.Join(strings.Fields(text), " ")
+				m := reSummaryRow.FindStringSubmatch(text)
+				if m == nil {
+					continue
+				}
+				label := strings.ToLower(m[1])
+				n, err := strconv.ParseInt(m[2], 10, 64)
 				if err != nil {
 					continue
 				}
 				switch {
-				case strings.Contains(joined, "ИТОГО"):
+				case strings.Contains(label, "итого"):
 					out.TotalStaff = &n
 					hasAny = true
-				case strings.Contains(joined, "Руководящее звено"):
+				case strings.Contains(label, "руководящее звено"):
 					out.ManagersCount = &n
 					hasAny = true
-				case strings.Contains(joined, "Специалисты"):
+				case strings.Contains(label, "специалисты"):
 					out.SpecialistsCount = &n
 					hasAny = true
-				case strings.Contains(joined, "Рабочие"):
+				case strings.Contains(label, "рабочие"):
 					out.WorkersCount = &n
 					hasAny = true
 				}
@@ -51,52 +62,57 @@ func extractStaffMembers(inputs []Input) []*model.StaffMember {
 		for _, tbl := range in.Tables {
 			var category string
 			for _, row := range tbl {
-				if len(row.Cells) < 1 {
+				if len(row.Cells) == 0 {
 					continue
 				}
-				if len(row.Cells) == 1 {
-					joined := row.Cells[0]
-					switch {
-					case strings.Contains(joined, "Руководящее звено"):
-						category = "managers"
-					case strings.Contains(joined, "Специалисты"):
-						category = "specialists"
-					case strings.Contains(joined, "Рабочие"):
-						category = "workers"
-					}
+				text := strings.Join(row.Cells, " ")
+				text = strings.Join(strings.Fields(text), " ")
+				if text == "" {
+					continue
+				}
+				switch {
+				case strings.Contains(text, "Руководящее звено"):
+					category = "managers"
+					continue
+				case strings.Contains(text, "Специалисты"):
+					category = "specialists"
+					continue
+				case strings.Contains(text, "Рабочие"):
+					category = "workers"
 					continue
 				}
 				if category == "" {
 					continue
 				}
-				fullNamePos := row.Cells[1]
-				if fullNamePos == "" || !strings.Contains(fullNamePos, ".") {
+				if !reMemberNum.MatchString(text) {
 					continue
 				}
+				m := &model.StaffMember{}
 				cat := category
-				m := &model.StaffMember{Category: &cat}
-
-				name := fullNamePos
-				pos := ""
-				if i := strings.Index(fullNamePos, ","); i > 0 {
-					name = strings.TrimSpace(fullNamePos[:i])
-					pos = strings.TrimSpace(fullNamePos[i+1:])
-				}
-				if name != "" {
-					m.FullName = &name
-				}
-				if pos != "" {
-					m.Position = &pos
-				}
-				if len(row.Cells) > 2 && row.Cells[2] != "" {
-					edu := strings.TrimSpace(row.Cells[2])
-					m.Education = &edu
-				}
-				if len(row.Cells) > 3 && row.Cells[3] != "" {
-					exp := strings.ReplaceAll(strings.TrimSpace(row.Cells[3]), ",", ".")
+				m.Category = &cat
+				// Формат: "1. Дубинович И.В., заместитель … <образование> <стаж>"
+				// Стаж — последнее число (или число с запятой) в тексте.
+				expRe := regexp.MustCompile(`(\d+(?:[,.]\d+)?)\s*$`)
+				if em := expRe.FindStringSubmatch(text); em != nil {
+					exp := strings.ReplaceAll(em[1], ",", ".")
 					m.ExperienceYears = &exp
+					text = strings.TrimSpace(text[:len(text)-len(em[0])])
 				}
-				out = append(out, m)
+				// ФИО и должность: до первой запятой после номера.
+				body := reMemberNum.ReplaceAllString(text, "$2")
+				if i := strings.Index(body, ","); i > 0 {
+					fn := strings.TrimSpace(body[:i])
+					pos := strings.TrimSpace(body[i+1:])
+					if fn != "" {
+						m.FullName = &fn
+					}
+					if pos != "" {
+						m.Position = &pos
+					}
+				}
+				if m.FullName != nil {
+					out = append(out, m)
+				}
 			}
 		}
 	}

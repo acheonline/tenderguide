@@ -5,10 +5,16 @@ import (
 	"strings"
 )
 
-// Мусорный префикс до первой кириллицы, цифры или №.
+// Мусорный префикс до первой буквы, цифры или №.
 var reGarbagePrefix = regexp.MustCompile(`^[^\p{L}\d№]+`)
 
+// reMarkdownLink вырезает []() из текста, оставляя только подпись.
+var reMarkdownLink = regexp.MustCompile(`\[([^\]]*)\]\([^)]*\)`)
+
+// stripGarbage убирает мусорный префикс, неразрывные пробелы и markdown-ссылки.
 func stripGarbage(s string) string {
+	s = strings.ReplaceAll(s, "\u00a0", " ")
+	s = reMarkdownLink.ReplaceAllString(s, "$1")
 	return reGarbagePrefix.ReplaceAllString(s, "")
 }
 

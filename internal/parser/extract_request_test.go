@@ -4,7 +4,7 @@ import "testing"
 
 func TestExtractRequestProcedureNumber(t *testing.T) {
 	in := []Input{{Paragraphs: []string{
-		"Изучив Извещение о проведении Конкурса, опубликованное в ЕИС за № 32616122324 от «17» июня 2026 г.",
+		"Изучив Извещение о проведении Конкурса, опубликованное в ЕИС за № [](https://zakupki.gov.ru/epz/order/notice/notice223/common-info.html?regNumber=32616122324) от «17» июня 2026 г.",
 	}}}
 	got := extractRequest(in)
 	if got.ProcedureNumber == nil || *got.ProcedureNumber != "32616122324" {
@@ -17,7 +17,8 @@ func TestExtractRequestProcedureNumber(t *testing.T) {
 
 func TestExtractRequestLetterNumberNotProcedureNumber(t *testing.T) {
 	in := []Input{{Paragraphs: []string{
-		"№197 От «01» июля 2026 года",
+		"№197",
+		"От «01» июля 2026 года",
 	}}}
 	got := extractRequest(in)
 	if got.ProcedureNumber != nil {
@@ -33,7 +34,9 @@ func TestExtractRequestLetterNumberNotProcedureNumber(t *testing.T) {
 
 func TestExtractRequestProcedureName(t *testing.T) {
 	in := []Input{{Paragraphs: []string{
-		"предлагает заключить договор на оказание услуг по обеспечению безопасности веб-приложений АО «ТЭК СПб», (наименование предмета Конкурса)",
+		"предлагает заключить договор на",
+		"оказание услуг по обеспечению безопасности веб-приложений АО «ТЭК СПб»,",
+		"(наименование предмета Конкурса согласно Документации о Конкурсе)",
 	}}}
 	got := extractRequest(in)
 	if got.ProcedureName == nil {
@@ -46,7 +49,8 @@ func TestExtractRequestProcedureName(t *testing.T) {
 
 func TestExtractRequestProcedureNameTypo(t *testing.T) {
 	in := []Input{{Paragraphs: []string{
-		"предлагает заключить договор на на оказание услуг, (наименование)",
+		"предлагает заключить договор на",
+		"на оказание услуг,",
 	}}}
 	got := extractRequest(in)
 	if got.ProcedureName == nil {
@@ -59,9 +63,13 @@ func TestExtractRequestProcedureNameTypo(t *testing.T) {
 
 func TestExtractRequestPrices(t *testing.T) {
 	in := []Input{{Paragraphs: []string{
-		"на условиях на общую сумму: 14 414 600,00 (Четырнадцать миллионов) рублей 00 копеек (общая сумма заявки цифрами и прописью, рублей, с учетом НДС)",
-		"2 013 000,00 (Два миллиона тринадцать тысяч) рублей 00 копеек (сумма НДС цифрами и прописью, рублей)",
-		"12 401 600,00 (Двенадцать миллионов) рублей 00 копеек. (общая сумма заявки цифрами и прописью, рублей, без учета НДС)",
+		"на условиях на общую сумму:",
+		"14 414 600,00 (Четырнадцать миллионов) рублей 00 копеек",
+		"(общая сумма заявки цифрами и прописью, рублей, с учетом НДС)",
+		"2 013 000,00 (Два миллиона тринадцать тысяч) рублей 00 копеек",
+		"(сумма НДС цифрами и прописью, рублей)",
+		"12 401 600,00 (Двенадцать миллионов) рублей 00 копеек.",
+		"(общая сумма заявки цифрами и прописью, рублей, без учета НДС)",
 	}}}
 	got := extractRequest(in)
 	if got.PriceWithVAT == nil || *got.PriceWithVAT != "14414600.00" {

@@ -116,4 +116,39 @@ CREATE TABLE IF NOT EXISTS beneficiaries (
     role TEXT,
     share_gt_10pct INTEGER
 );
+
+CREATE TABLE IF NOT EXISTS doc_info (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    doc_id TEXT UNIQUE NOT NULL,
+    customer_name TEXT,
+    customer_inn TEXT,
+    organizer_name TEXT,
+    procedure_number TEXT,
+    procedure_name TEXT,
+    nmck TEXT,
+    nmck_without_vat TEXT,
+    vat TEXT,
+    submission_deadline TEXT,
+    review_deadline TEXT,
+    bid_security_amount TEXT,
+    bid_security_percent TEXT,
+    bid_security_type TEXT,
+    contract_security_amount TEXT,
+    contract_security_required INTEGER,
+    price_criterion_weight TEXT,
+    qualification_criterion_weight TEXT,
+    law_basis TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS doc_requirements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    doc_id TEXT NOT NULL REFERENCES doc_info(doc_id),
+    kind TEXT NOT NULL,
+    code TEXT,
+    name TEXT,
+    required INTEGER,
+    source_section TEXT,
+    UNIQUE (doc_id, kind, code)
+);
 `

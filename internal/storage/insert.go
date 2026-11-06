@@ -157,6 +157,26 @@ func insertBeneficiaries(ctx context.Context, tx *sql.Tx, pid int64, items []*mo
 	return nil
 }
 
+func insertDocRequirements(ctx context.Context, tx *sql.Tx, docID string, items []*model.DocRequirement) error {
+	for _, r := range items {
+		if r == nil {
+			continue
+		}
+		_, err := tx.ExecContext(ctx, `
+			INSERT INTO doc_requirements (doc_id, kind, code, name, required, source_section)
+			VALUES (?, ?, ?, ?, ?, ?)`,
+			docID, r.Kind, r.Code, r.Name, boolToInt(r.Required), r.SourceSection,
+		)
+		if err != nil {
+			if isUniqueViolation(err, "doc_requirements") {
+				continue
+			}
+			return fmt.Errorf("storage: insert doc_requirement: %w", err)
+		}
+	}
+	return nil
+}
+
 func errorsIsNoRows(err error) bool {
 	return err == sql.ErrNoRows || (err != nil && err.Error() == "sql: no rows in result set")
 }

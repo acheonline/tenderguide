@@ -11,6 +11,7 @@ import (
 var (
 	reSummaryRow = regexp.MustCompile(`^(.+?)\s+(\d+)\s+(\d+)\s*$`)
 	reMemberNum  = regexp.MustCompile(`^(\d+)\.\s*(.+)$`)
+	reEduStart   = regexp.MustCompile(`(ФГБОУ|МГТУ|Учебный центр|Санкт-Петербургская|Профессиональный лицей|Автономная некоммерческая)`)
 )
 
 func extractStaffSummary(inputs []Input) *model.StaffSummary {
@@ -105,6 +106,13 @@ func extractStaffMembers(inputs []Input) []*model.StaffMember {
 					pos := strings.TrimSpace(body[i+1:])
 					if fn != "" {
 						m.FullName = &fn
+					}
+					if loc := reEduStart.FindStringIndex(pos); loc != nil {
+						edu := strings.TrimSpace(pos[loc[0]:])
+						pos = strings.TrimSpace(pos[:loc[0]])
+						if edu != "" {
+							m.Education = &edu
+						}
 					}
 					if pos != "" {
 						m.Position = &pos

@@ -19,6 +19,7 @@ func run(args []string) int {
 		fmt.Fprintln(os.Stderr, "usage: tenderguide <command> [flags]")
 		fmt.Fprintln(os.Stderr, "commands:")
 		fmt.Fprintln(os.Stderr, "  load --dir <path> [--db <path>]")
+		fmt.Fprintln(os.Stderr, "  show --request <id> [--db <path>] [--format text|json]")
 		return 2
 	}
 
@@ -26,6 +27,8 @@ func run(args []string) int {
 	switch args[0] {
 	case "load":
 		return runLoad(ctx, args[1:])
+	case "show":
+		return runShow(ctx, args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", args[0])
 		return 2

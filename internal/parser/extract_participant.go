@@ -18,6 +18,7 @@ var (
 	reWebsite     = regexp.MustCompile(`https?://[\w./-]+`)
 	reDirectorPos = regexp.MustCompile(`(Генеральный директор|Директор)`)
 	reFIO         = regexp.MustCompile(`[А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+`)
+	reOKVED       = regexp.MustCompile(`^(\d{2}\.\d{2})\s*-\s*(.+)$`)
 )
 
 func extractParticipant(inputs []Input) *model.Participant {
@@ -156,6 +157,17 @@ func extractParticipant(inputs []Input) *model.Participant {
 					if out.ChiefAccountantName == nil {
 						if fio := reFIO.FindString(valClean); fio != "" {
 							out.ChiefAccountantName = &fio
+						}
+					}
+				case strings.Contains(key, "Сведения о производимых субъектами малого и среднего предпринимательства товарах"):
+					if out.PrimaryOKVED == nil {
+						if m := reOKVED.FindStringSubmatch(valClean); m != nil {
+							code := m[1]
+							name := strings.TrimSpace(m[2])
+							out.PrimaryOKVED = &code
+							if name != "" {
+								out.PrimaryOKVEDName = &name
+							}
 						}
 					}
 				case strings.Contains(key, "Фамилия, Имя и Отчество ответственного лица"):

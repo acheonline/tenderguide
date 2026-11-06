@@ -182,7 +182,7 @@ func getStaffSummary(ctx context.Context, db *sql.DB, reqID int64) (*model.Staff
 func getStaffMembers(ctx context.Context, db *sql.DB, reqID int64) ([]*model.StaffMember, error) {
 	rows, err := db.QueryContext(ctx, `
 		SELECT id, category, full_name, position, education, experience_years
-		FROM staff_members WHERE request_id = ?`, reqID)
+		FROM staff_members WHERE request_id = ? ORDER BY id`, reqID)
 	if err != nil {
 		return nil, fmt.Errorf("storage: get staff_members: %w", err)
 	}

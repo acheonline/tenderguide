@@ -1,56 +1,46 @@
 package parser
 
 import (
-	"regexp"
 	"strings"
 
 	"github.com/acheonline/tenderguide/internal/model"
-)
-
-var (
-	reINN12    = regexp.MustCompile(`\b\d{12}\b`)
-	rePassport = regexp.MustCompile(`\d{4}\s*\d{6}`)
-	reFIO3     = regexp.MustCompile(`[А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+`)
-	reRegAddr  = regexp.MustCompile(`\d{6},\s*г\.\s*[А-ЯЁ][а-яё-]+[^,]*,\s*[^,]+,\s*д\.\s*\d+[^,]*`)
 )
 
 func extractBeneficiaries(inputs []Input) []*model.Beneficiary {
 	var out []*model.Beneficiary
 	for _, in := range inputs {
 		for _, tbl := range in.Tables {
-			// Таблица формы 8: в одной из ячеек есть "Руководитель/Участник" и ИНН12.
 			for _, row := range tbl {
-				if len(row.Cells) == 0 {
+				// Форма 8: 14 ячеек на строку бенефициара.
+				if len(row.Cells) < 13 {
 					continue
 				}
-				joined := strings.Join(row.Cells, " ")
-				if !strings.Contains(joined, "Руководитель") && !strings.Contains(joined, "Участник") {
-					continue
-				}
-				if !reINN12.MatchString(joined) {
+				// Cells[7] — ИНН бенефициара (12 цифр).
+				inn := strings.TrimSpace(row.Cells[7])
+				if !isINN12(inn) {
 					continue
 				}
 				b := &model.Beneficiary{}
-				if m := reINN12.FindString(joined); m != "" {
-					b.INN = &m
+				v := inn
+				b.INN = &v
+
+				// Cells[9] — ФИО бенефициара.
+				if fio := strings.TrimSpace(row.Cells[9]); fio != "" {
+					b.FullName = &fio
 				}
-				// ФИО бенефициара — последнее ФИО в строке (руководитель идёт раньше).
-				fios := reFIO3.FindAllString(joined, -1)
-				if len(fios) > 0 {
-					fn := fios[len(fios)-1]
-					b.FullName = &fn
+				// Cells[10] — адрес регистрации.
+				if addr := strings.TrimSpace(row.Cells[10]); addr != "" {
+					b.RegistrationAddress = &addr
 				}
-				if ms := rePassport.FindAllString(joined, -1); len(ms) > 0 {
-					m := ms[len(ms)-1]
-					b.Passport = &m
+				// Cells[11] — паспорт бенефициара.
+				if passport := strings.TrimSpace(row.Cells[11]); passport != "" {
+					b.Passport = &passport
 				}
-				if m := reRegAddr.FindString(joined); m != "" {
-					b.RegistrationAddress = &m
+				// Cells[12] — роль.
+				if role := strings.TrimSpace(row.Cells[12]); role != "" {
+					b.Role = &role
 				}
-				if strings.Contains(joined, "Руководитель/Участник") {
-					r := "Руководитель/Участник"
-					b.Role = &r
-				}
+				// share_gt_10pct = true, если это учредитель (форма 2 п.2).
 				share := true
 				b.ShareGT10Pct = &share
 				out = append(out, b)
@@ -58,4 +48,16 @@ func extractBeneficiaries(inputs []Input) []*model.Beneficiary {
 		}
 	}
 	return out
+}
+
+func isINN12(s string) bool {
+	if len(s) != 12 {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }

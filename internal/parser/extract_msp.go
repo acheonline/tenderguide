@@ -9,9 +9,8 @@ import (
 )
 
 var (
-	reContractsCount = regexp.MustCompile(`да\s*\((\d+)\s+договор`)
+	reContractsCount = regexp.MustCompile(`\((\d+)\s+договор`)
 	reContractsSum   = regexp.MustCompile(`(\d[\d\s]*,\d{2})\s*руб`)
-	reMillionValue   = regexp.MustCompile(`([\d\s]+,\d+)`)
 )
 
 func extractMSPInfo(inputs []Input) *model.MSPInfo {
@@ -35,54 +34,48 @@ func extractMSPInfo(inputs []Input) *model.MSPInfo {
 	out.IsSMP = &t
 
 	for _, in := range inputs {
-		for _, p := range in.Paragraphs {
-			p = stripGarbage(p)
-			if out.Contracts44223Count == nil {
-				if m := reContractsCount.FindStringSubmatch(p); m != nil {
-					if n, err := strconv.ParseInt(m[1], 10, 64); err == nil {
-						out.Contracts44223Count = &n
-					}
-				}
-			}
-			if out.Contracts44223Sum == nil {
-				if m := reContractsSum.FindStringSubmatch(p); m != nil {
-					if v := normalizeDecimal(m[1]); v != nil {
-						out.Contracts44223Sum = v
-					}
-				}
-			}
-			if out.InRNP == nil && strings.Contains(p, "Реестр недобросовестных") {
-				b := !strings.Contains(strings.ToLower(p), "нет")
-				out.InRNP = &b
-			}
-		}
 		for _, tbl := range in.Tables {
 			for _, row := range tbl {
-				if len(row.Cells) == 0 {
+				if len(row.Cells) < 3 {
 					continue
 				}
-				joined := strings.Join(row.Cells, " ")
-				if out.InRNP == nil && strings.Contains(joined, "Реестр недобросовестных") {
-					b := !strings.Contains(strings.ToLower(joined), "нет")
-					out.InRNP = &b
-				}
-				if len(row.Cells) < 2 {
-					continue
-				}
-				last := strings.TrimSpace(row.Cells[len(row.Cells)-1])
-				if strings.Contains(joined, "Среднесписочная численность") && out.AverageHeadcount == nil {
+				// key — Cells[1], value — Cells[2].
+				key := strings.TrimSpace(row.Cells[1])
+				val := strings.TrimSpace(row.Cells[2])
+
+				switch {
+				case strings.Contains(key, "Среднесписочная численность") && out.AverageHeadcount == nil:
+					// Значение в Cells[4] (последняя).
+					last := strings.TrimSpace(row.Cells[len(row.Cells)-1])
 					if n, err := strconv.ParseInt(onlyDigits(last), 10, 64); err == nil && n > 0 {
 						out.AverageHeadcount = &n
 					}
-				}
-				if strings.Contains(joined, "Доход за предшествующий") && out.RevenuePreviousYear == nil {
-					if m := reMillionValue.FindStringSubmatch(last); m != nil {
+				case strings.Contains(key, "Доход за предшествующий") && out.RevenuePreviousYear == nil:
+					last := strings.TrimSpace(row.Cells[len(row.Cells)-1])
+					if m := regexp.MustCompile(`([\d\s]+,\d+)`).FindStringSubmatch(last); m != nil {
 						raw := strings.ReplaceAll(strings.ReplaceAll(m[1], " ", ""), ",", ".")
 						if f, err := strconv.ParseFloat(raw, 64); err == nil {
 							v := int64(f * 1_000_000)
 							out.RevenuePreviousYear = &v
 						}
 					}
+				case strings.Contains(key, "Сведения о наличии у юридического лица") && out.Contracts44223Count == nil:
+					if m := reContractsCount.FindStringSubmatch(val); m != nil {
+						if n, err := strconv.ParseInt(m[1], 10, 64); err == nil {
+							out.Contracts44223Count = &n
+						}
+					}
+					if out.Contracts44223Sum == nil {
+						valSum := strings.ReplaceAll(val, "\u00a0", " ")
+						if m := reContractsSum.FindStringSubmatch(valSum); m != nil {
+							if v := normalizeDecimal(m[1]); v != nil {
+								out.Contracts44223Sum = v
+							}
+						}
+					}
+				case strings.Contains(key, "в реестрах недобросовестных поставщиков") && out.InRNP == nil:
+					b := !strings.Contains(strings.ToLower(val), "нет")
+					out.InRNP = &b
 				}
 			}
 		}

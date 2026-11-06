@@ -1,0 +1,17 @@
+style:
+  code_style: |
+    Go 1.22, только stdlib (без внешних зависимостей без согласования).
+    Ошибки оборачивать через %w, не игнорировать.
+    context.Context первым аргументом в функциях с I/O.
+    Логи только через slog, без секретов и ПДн.
+    Новая логика = табличные тесты. Сеть в юнит-тестах запрещена.
+    Never delete or weaken existing tests to make CI pass.
+    Коммиты в стиле Conventional Commits.
+  testing: "go test"
+  formatting: "gofmt"
+  linting: true
+
+pr:
+  max_files_per_pr: 10
+  min_tests: true
+  require_changelog: false

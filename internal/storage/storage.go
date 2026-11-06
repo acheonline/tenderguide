@@ -16,6 +16,9 @@ import (
 // ErrDuplicateRequest возвращается, когда requests.request_id уже есть в БД.
 var ErrDuplicateRequest = errors.New("storage: duplicate request_id")
 
+// ErrDuplicateDoc возвращается, когда doc_info.doc_id уже есть в БД.
+var ErrDuplicateDoc = errors.New("storage: duplicate doc_id")
+
 // Store — обёртка над *sql.DB с методами сохранения и чтения.
 type Store struct {
 	db *sql.DB
@@ -137,6 +140,153 @@ func (s *Store) Save(ctx context.Context, a *model.All) (int64, error) {
 	}
 	committed = true
 	return requestPK, nil
+}
+
+// SaveDoc пишет model.DocAll в БД в одной транзакции.
+func (s *Store) SaveDoc(ctx context.Context, d *model.DocAll) (int64, error) {
+	if d == nil || d.Info == nil {
+		return 0, errors.New("storage: nil doc info")
+	}
+	if d.Info.DocID == "" {
+		return 0, errors.New("storage: empty doc_id")
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("storage: begin tx: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+
+	createdAt := d.Info.CreatedAt
+	if createdAt == "" {
+		createdAt = time.Now().UTC().Format(time.RFC3339)
+	}
+
+	res, err := tx.ExecContext(ctx, `
+		INSERT INTO doc_info (
+			doc_id, customer_name, customer_inn, organizer_name,
+			procedure_number, procedure_name, nmck, nmck_without_vat, vat,
+			submission_deadline, review_deadline,
+			bid_security_amount, bid_security_percent, bid_security_type,
+			contract_security_amount, contract_security_required,
+			price_criterion_weight, qualification_criterion_weight, law_basis, created_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		d.Info.DocID,
+		d.Info.CustomerName,
+		d.Info.CustomerINN,
+		d.Info.OrganizerName,
+		d.Info.ProcedureNumber,
+		d.Info.ProcedureName,
+		d.Info.NMCK,
+		d.Info.NMCKWithoutVAT,
+		d.Info.VAT,
+		d.Info.SubmissionDeadline,
+		d.Info.ReviewDeadline,
+		d.Info.BidSecurityAmount,
+		d.Info.BidSecurityPercent,
+		d.Info.BidSecurityType,
+		d.Info.ContractSecurityAmount,
+		boolToInt(d.Info.ContractSecurityRequired),
+		d.Info.PriceCriterionWeight,
+		d.Info.QualificationCriterionWeight,
+		d.Info.LawBasis,
+		createdAt,
+	)
+	if err != nil {
+		if isUniqueViolation(err, "doc_info.doc_id") {
+			return 0, ErrDuplicateDoc
+		}
+		return 0, fmt.Errorf("storage: insert doc_info: %w", err)
+	}
+
+	docPK, err := res.LastInsertId()
+	if err != nil {
+		return 0, fmt.Errorf("storage: last insert id: %w", err)
+	}
+
+	if err := insertDocRequirements(ctx, tx, d.Info.DocID, d.Requirements); err != nil {
+		return 0, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("storage: commit: %w", err)
+	}
+	committed = true
+	return docPK, nil
+}
+
+// GetDocByDocID возвращает model.DocAll по строковому doc_id.
+func (s *Store) GetDocByDocID(ctx context.Context, docID string) (*model.DocAll, error) {
+	var (
+		pk                                                       int64
+		customerName, customerINN, organizerName                 sql.NullString
+		procedureNumber, procedureName, nmck, nmckWithoutVAT     sql.NullString
+		vat, submissionDeadline, reviewDeadline                  sql.NullString
+		bidSecurityAmount, bidSecurityPercent, bidSecurityType   sql.NullString
+		contractSecurityAmount                                   sql.NullString
+		contractSecurityRequired                                 sql.NullInt64
+		priceCriterionWeight, qualificationCriterionWeight       sql.NullString
+		lawBasis, createdAt                                      sql.NullString
+	)
+	err := s.db.QueryRowContext(ctx, `
+		SELECT id, customer_name, customer_inn, organizer_name,
+		       procedure_number, procedure_name, nmck, nmck_without_vat, vat,
+		       submission_deadline, review_deadline,
+		       bid_security_amount, bid_security_percent, bid_security_type,
+		       contract_security_amount, contract_security_required,
+		       price_criterion_weight, qualification_criterion_weight, law_basis, created_at
+		FROM doc_info WHERE doc_id = ?`, docID,
+	).Scan(
+		&pk,
+		&customerName, &customerINN, &organizerName,
+		&procedureNumber, &procedureName, &nmck, &nmckWithoutVAT,
+		&vat, &submissionDeadline, &reviewDeadline,
+		&bidSecurityAmount, &bidSecurityPercent, &bidSecurityType,
+		&contractSecurityAmount, &contractSecurityRequired,
+		&priceCriterionWeight, &qualificationCriterionWeight, &lawBasis, &createdAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("storage: get doc_info: %w", sql.ErrNoRows)
+		}
+		return nil, fmt.Errorf("storage: get doc_info: %w", err)
+	}
+
+	out := &model.DocAll{
+		Info: &model.DocInfo{
+			ID:                           pk,
+			DocID:                        docID,
+			CustomerName:                 ns(customerName),
+			CustomerINN:                  ns(customerINN),
+			OrganizerName:                ns(organizerName),
+			ProcedureNumber:              ns(procedureNumber),
+			ProcedureName:                ns(procedureName),
+			NMCK:                         ns(nmck),
+			NMCKWithoutVAT:               ns(nmckWithoutVAT),
+			VAT:                          ns(vat),
+			SubmissionDeadline:           ns(submissionDeadline),
+			ReviewDeadline:               ns(reviewDeadline),
+			BidSecurityAmount:            ns(bidSecurityAmount),
+			BidSecurityPercent:           ns(bidSecurityPercent),
+			BidSecurityType:              ns(bidSecurityType),
+			ContractSecurityAmount:       ns(contractSecurityAmount),
+			ContractSecurityRequired:     nb(contractSecurityRequired),
+			PriceCriterionWeight:         ns(priceCriterionWeight),
+			QualificationCriterionWeight: ns(qualificationCriterionWeight),
+			LawBasis:                     ns(lawBasis),
+			CreatedAt:                    createdAt.String,
+		},
+	}
+
+	if out.Requirements, err = getDocRequirements(ctx, s.db, docID); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // GetByRequestID возвращает model.All по строковому request_id.

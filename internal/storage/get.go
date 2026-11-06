@@ -209,6 +209,39 @@ func getStaffMembers(ctx context.Context, db *sql.DB, reqID int64) ([]*model.Sta
 	return out, rows.Err()
 }
 
+func getDocRequirements(ctx context.Context, db *sql.DB, docID string) ([]*model.DocRequirement, error) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT id, kind, code, name, required, source_section
+		FROM doc_requirements WHERE doc_id = ? ORDER BY id`, docID)
+	if err != nil {
+		return nil, fmt.Errorf("storage: get doc_requirements: %w", err)
+	}
+	defer rows.Close()
+	var out []*model.DocRequirement
+	for rows.Next() {
+		var (
+			id            int64
+			kind          string
+			code, name    sql.NullString
+			required      sql.NullInt64
+			sourceSection sql.NullString
+		)
+		if err := rows.Scan(&id, &kind, &code, &name, &required, &sourceSection); err != nil {
+			return nil, err
+		}
+		out = append(out, &model.DocRequirement{
+			ID:            id,
+			DocID:         docID,
+			Kind:          kind,
+			Code:          ns(code),
+			Name:          ns(name),
+			Required:      nb(required),
+			SourceSection: ns(sourceSection),
+		})
+	}
+	return out, rows.Err()
+}
+
 func getBeneficiaries(ctx context.Context, db *sql.DB, pid int64) ([]*model.Beneficiary, error) {
 	rows, err := db.QueryContext(ctx, `
 		SELECT id, full_name, inn, passport, registration_address, role, share_gt_10pct

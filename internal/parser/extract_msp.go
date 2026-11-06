@@ -51,6 +51,10 @@ func extractMSPInfo(inputs []Input) *model.MSPInfo {
 					}
 				}
 			}
+			if out.InRNP == nil && strings.Contains(p, "Реестр недобросовестных") {
+				b := !strings.Contains(strings.ToLower(p), "нет")
+				out.InRNP = &b
+			}
 		}
 		for _, tbl := range in.Tables {
 			for _, row := range tbl {

@@ -60,12 +60,6 @@ jobs:
       - name: Add pip user bin to PATH
         run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - name: Configure RepoKeeper backend to Pi
-        run: |
-          cat > repokeeper.yml << 'EOF'
-          backend: pi
-          EOF
-
       - name: Run RepoKeeper Agent
         run: |
           repokeeper agent \

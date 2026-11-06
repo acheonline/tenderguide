@@ -2,10 +2,14 @@ module github.com/acheonline/tenderguide
 
 go 1.22
 
-require modernc.org/sqlite v1.30.0
+require (
+	github.com/fumiama/go-docx v0.0.0-20250506085032-0c30fd09304b
+	modernc.org/sqlite v1.30.0
+)
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/fumiama/imgsz v0.0.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect

@@ -3,37 +3,29 @@ package main
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 )
 
 func main() {
-	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	slog.SetDefault(logger)
-
-	os.Exit(run(os.Args[1:]))
-}
-
-func run(args []string) int {
-	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: tenderguide <command> [flags]")
-		fmt.Fprintln(os.Stderr, "commands:")
-		fmt.Fprintln(os.Stderr, "  load --dir <path> [--db <path>]")
-		fmt.Fprintln(os.Stderr, "  load-doc --dir <path> [--db <path>]")
-		fmt.Fprintln(os.Stderr, "  show --request <id> [--db <path>] [--format text|json]")
-		return 2
-	}
-
 	ctx := context.Background()
-	switch args[0] {
-	case "load":
-		return runLoad(ctx, args[1:])
-	case "load-doc":
-		return runLoadDoc(ctx, args[1:])
-	case "show":
-		return runShow(ctx, args[1:])
-	default:
-		fmt.Fprintf(os.Stderr, "unknown command: %s\n", args[0])
-		return 2
+	if len(os.Args) < 2 {
+		fmt.Fprintln(os.Stderr, "usage: tenderguide <load|load-doc|show|show-doc> [flags]")
+		os.Exit(2)
 	}
+
+	var code int
+	switch os.Args[1] {
+	case "load":
+		code = runLoad(ctx, os.Args[2:])
+	case "load-doc":
+		code = runLoadDoc(ctx, os.Args[2:])
+	case "show":
+		code = runShow(ctx, os.Args[2:])
+	case "show-doc":
+		code = runShowDoc(ctx, os.Args[2:])
+	default:
+		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
+		code = 2
+	}
+	os.Exit(code)
 }

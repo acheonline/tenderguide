@@ -1,0 +1,63 @@
+name: RepoKeeper Agent
+
+on:
+  issue_comment:
+    types: [created]
+  issues:
+    types: [labeled]
+  pull_request_target:
+    types: [labeled]
+
+jobs:
+  agent:
+    runs-on: [self-hosted, tenderguide]
+    if: |
+      (
+        github.event_name == 'issue_comment' &&
+        contains(github.event.comment.body, '/repokeeper go') &&
+        (
+          github.event.comment.author_association == 'OWNER' ||
+          github.event.comment.author_association == 'MEMBER' ||
+          github.event.comment.author_association == 'COLLABORATOR'
+        )
+      ) ||
+      (
+        github.event_name == 'issues' &&
+        github.event.label.name == 'agent-todo'
+      ) ||
+      (
+        github.event_name == 'pull_request_target' &&
+        github.event.label.name == 'agent-fix'
+      )
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine context
+        id: ctx
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request_target" ]; then
+            echo "issue=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+            echo "pr=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.issue.pull_request }}" != "" ]; then
+            echo "issue=${{ github.event.issue.number }}" >> "$GITHUB_OUTPUT"
+            echo "pr=${{ github.event.issue.number }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "issue=${{ github.event.issue.number }}" >> "$GITHUB_OUTPUT"
+            echo "pr=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run RepoKeeper Agent
+        uses: shenxianpeng/repokeeper/agent@v1
+        with:
+          repo: ${{ github.repository }}
+          issue: ${{ steps.ctx.outputs.issue }}
+          pr: ${{ steps.ctx.outputs.pr }}
+          llm_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
+          llm_base_url: ${{ secrets.LLM_BASE_URL || 'https://api.deepseek.com' }}
+          github_token: ${{ secrets.REPOKEEPER_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}

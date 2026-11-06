@@ -38,7 +38,14 @@ func extractParticipant(inputs []Input) *model.Participant {
 					continue
 				}
 				valClean := stripGarbage(val)
-				if valClean == "" && val == "" {
+				allEmpty := true
+				for _, c := range row.Cells {
+					if strings.TrimSpace(c) != "" {
+						allEmpty = false
+						break
+					}
+				}
+				if allEmpty {
 					continue
 				}
 				fillFromText(out, valClean)
@@ -160,8 +167,9 @@ func extractParticipant(inputs []Input) *model.Participant {
 						}
 					}
 				case strings.Contains(key, "Сведения о производимых субъектами малого и среднего предпринимательства товарах"):
-					if out.PrimaryOKVED == nil {
-						if m := reOKVED.FindStringSubmatch(valClean); m != nil {
+					if out.PrimaryOKVED == nil && len(row.Cells) >= 3 {
+						v := strings.TrimSpace(row.Cells[2])
+						if m := regexp.MustCompile(`^(\d{2}\.\d{2})\s*-\s*(.+)$`).FindStringSubmatch(v); m != nil {
 							code := m[1]
 							name := strings.TrimSpace(m[2])
 							out.PrimaryOKVED = &code

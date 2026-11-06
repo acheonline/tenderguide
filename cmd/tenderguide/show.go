@@ -177,7 +177,7 @@ func writeMSPInfo(w io.Writer, m *model.MSPInfo) {
 	field(w, "МСП", boolean(m.IsSMP))
 	field(w, "Категория", str(m.SMPCategory))
 	field(w, "Среднесписочная", intVal(m.AverageHeadcount))
-	field(w, "Доход (млн)", intVal(m.RevenuePreviousYear))
+	field(w, "Доход", intVal(m.RevenuePreviousYear))
 	field(w, "Контракты 44/223", intVal(m.Contracts44223Count))
 	field(w, "Сумма контрактов", str(m.Contracts44223Sum))
 	field(w, "В РНП", boolean(m.InRNP))

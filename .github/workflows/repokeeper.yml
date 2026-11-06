@@ -52,12 +52,21 @@ jobs:
             echo "pr=" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Install RepoKeeper
+        run: |
+          python3.10 -m pip install --upgrade pip
+          python3.10 -m pip install repokeeper
+
+      - name: Add pip user bin to PATH
+        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
       - name: Run RepoKeeper Agent
-        uses: shenxianpeng/repokeeper/agent@v1
-        with:
-          repo: ${{ github.repository }}
-          issue: ${{ steps.ctx.outputs.issue }}
-          pr: ${{ steps.ctx.outputs.pr }}
-          llm_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
-          llm_base_url: ${{ secrets.LLM_BASE_URL || 'https://api.deepseek.com' }}
-          github_token: ${{ secrets.REPOKEEPER_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          repokeeper agent \
+            --repo "${{ github.repository }}" \
+            --issue "${{ steps.ctx.outputs.issue }}" \
+            ${{ steps.ctx.outputs.pr != '' && format('--pr {0}', steps.ctx.outputs.pr) || '' }}
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL || 'https://api.deepseek.com' }}
+          GITHUB_TOKEN: ${{ secrets.REPOKEEPER_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}

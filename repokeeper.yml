@@ -1,3 +1,5 @@
+backend: pi
+
 style:
   code_style: |
     Go 1.22, только stdlib (без внешних зависимостей без согласования).

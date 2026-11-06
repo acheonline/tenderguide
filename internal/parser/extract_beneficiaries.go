@@ -11,6 +11,7 @@ var (
 	reINN12    = regexp.MustCompile(`\b\d{12}\b`)
 	rePassport = regexp.MustCompile(`\b\d{4}\s*\d{6}\b`)
 	reFIO3     = regexp.MustCompile(`[А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+`)
+	reRegAddr  = regexp.MustCompile(`\d{6},\s*г\.\s*[А-ЯЁ][а-яё-]+.*`)
 )
 
 func extractBeneficiaries(inputs []Input) []*model.Beneficiary {
@@ -38,6 +39,12 @@ func extractBeneficiaries(inputs []Input) []*model.Beneficiary {
 				if len(fios) > 0 {
 					fn := fios[len(fios)-1]
 					b.FullName = &fn
+				}
+				if m := rePassport.FindString(joined); m != "" {
+					b.Passport = &m
+				}
+				if m := reRegAddr.FindString(joined); m != "" {
+					b.RegistrationAddress = &m
 				}
 				if strings.Contains(joined, "Руководитель/Участник") {
 					r := "Руководитель/Участник"

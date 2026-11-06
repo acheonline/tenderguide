@@ -18,6 +18,23 @@ var (
 	reWebsite     = regexp.MustCompile(`https?://[\w./-]+`)
 	reDirectorPos = regexp.MustCompile(`(Генеральный директор|Директор)`)
 	reFIO         = regexp.MustCompile(`[А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+`)
+
+	reOKPO        = regexp.MustCompile(`ОКПО\s+Участника\s+(\d+)`)
+	reOKTMO       = regexp.MustCompile(`ОКТМО\s+Участника\s+(\d+)`)
+	reOKOPF       = regexp.MustCompile(`ОКОПФ\s+Участника\s+(\d+)`)
+	reOKOPFName   = regexp.MustCompile(`Организационно-правовая форма\s+([^\n]+?)(?:\s+\d+\.|$)`)
+	reLegalAddr   = regexp.MustCompile(`Юридический адрес\s+(.+?)(?:\s+\d+\.|$)`)
+	rePostalAddr  = regexp.MustCompile(`Почтовый адрес\s+(.+?)(?:\s+\d+\.|$)`)
+	reEGRULCert   = regexp.MustCompile(`серия\s+\d+\s+№\s*\d+`)
+	reEGRULAuth   = regexp.MustCompile(`Инспекция[^\n]+`)
+	reTaxAuth    = regexp.MustCompile(`(?:МЕЖРАЙОННАЯ|Межрайонная|ИФНС|Инспекция)[^\n]+`)
+	reBranches    = regexp.MustCompile(`Филиалы\s+(\S+)`)
+	rePhoneMarker = regexp.MustCompile(`Телефоны\s+Участника\s+(.+)`)
+	reFaxMarker   = regexp.MustCompile(`Факс\s+(.+)`)
+	reDirectorFIO = regexp.MustCompile(`ФИО\s+руководителя\s+(.+)`)
+	reChiefFIO    = regexp.MustCompile(`ФИО\s+главного\s+бухгалтера\s+(.+)`)
+	reRespFIO     = regexp.MustCompile(`ФИО\s+ответственного\s+лица\s+(.+)`)
+	reOKVED       = regexp.MustCompile(`(\d{2}\.\d{2})\s+(.+)`)
 )
 
 func extractParticipant(inputs []Input) *model.Participant {
@@ -32,6 +49,7 @@ func extractParticipant(inputs []Input) *model.Participant {
 				for _, cell := range row.Cells {
 					p := stripGarbage(cell)
 					fillFromText(out, p)
+					fillFromMergedCell(out, p)
 					if out.Email == nil {
 						if m := reEmail.FindString(p); m != "" {
 							out.Email = &m
@@ -135,6 +153,123 @@ func extractParticipant(inputs []Input) *model.Participant {
 		return nil
 	}
 	return out
+}
+
+func fillFromMergedCell(out *model.Participant, p string) {
+	if out.OKPO == nil {
+		if m := reOKPO.FindStringSubmatch(p); m != nil {
+			v := m[1]
+			out.OKPO = &v
+		}
+	}
+	if out.OKTMO == nil {
+		if m := reOKTMO.FindStringSubmatch(p); m != nil {
+			v := m[1]
+			out.OKTMO = &v
+		}
+	}
+	if out.OKOPF == nil {
+		if m := reOKOPF.FindStringSubmatch(p); m != nil {
+			v := m[1]
+			out.OKOPF = &v
+		}
+	}
+	if out.OKOPFName == nil {
+		if m := reOKOPFName.FindStringSubmatch(p); m != nil {
+			v := strings.TrimSpace(m[1])
+			if v != "" {
+				out.OKOPFName = &v
+			}
+		}
+	}
+	if out.LegalAddress == nil {
+		if m := reLegalAddr.FindStringSubmatch(p); m != nil {
+			v := strings.TrimSpace(m[1])
+			if v != "" {
+				out.LegalAddress = &v
+			}
+		}
+	}
+	if out.PostalAddress == nil {
+		if m := rePostalAddr.FindStringSubmatch(p); m != nil {
+			v := strings.TrimSpace(m[1])
+			if v != "" {
+				out.PostalAddress = &v
+			}
+		}
+	}
+	if out.EGRULCertificate == nil {
+		if m := reEGRULCert.FindString(p); m != "" {
+			out.EGRULCertificate = &m
+		}
+	}
+	if out.EGRULRegistrationAuthority == nil {
+		if m := reEGRULAuth.FindString(p); m != "" {
+			out.EGRULRegistrationAuthority = &m
+		}
+	}
+	if out.TaxAuthorityCurrent == nil {
+		if m := reTaxAuth.FindString(p); m != "" {
+			out.TaxAuthorityCurrent = &m
+		}
+	}
+	if out.HasBranches == nil {
+		if m := reBranches.FindStringSubmatch(p); m != nil {
+			b := !strings.Contains(strings.ToLower(m[1]), "нет")
+			out.HasBranches = &b
+		}
+	}
+	if out.Phone == nil {
+		if m := rePhoneMarker.FindStringSubmatch(p); m != nil {
+			if v := normalizePhone(m[1]); v != nil {
+				out.Phone = v
+			}
+		}
+	}
+	if out.Fax == nil {
+		if m := reFaxMarker.FindStringSubmatch(p); m != nil {
+			if !strings.Contains(strings.ToLower(m[1]), "нет") {
+				if v := normalizePhone(m[1]); v != nil {
+					out.Fax = v
+				}
+			}
+		}
+	}
+	if out.DirectorName == nil {
+		if m := reDirectorFIO.FindStringSubmatch(p); m != nil {
+			if fio := reFIO.FindString(m[1]); fio != "" {
+				out.DirectorName = &fio
+			}
+		}
+	}
+	if out.DirectorPosition == nil {
+		if m := reDirectorFIO.FindStringSubmatch(p); m != nil {
+			if pos := reDirectorPos.FindString(m[1]); pos != "" {
+				out.DirectorPosition = &pos
+			}
+		}
+	}
+	if out.ChiefAccountantName == nil {
+		if m := reChiefFIO.FindStringSubmatch(p); m != nil {
+			if fio := reFIO.FindString(m[1]); fio != "" {
+				out.ChiefAccountantName = &fio
+			}
+		}
+	}
+	if out.ResponsiblePersonName == nil {
+		if m := reRespFIO.FindStringSubmatch(p); m != nil {
+			if fio := reFIO.FindString(m[1]); fio != "" {
+				out.ResponsiblePersonName = &fio
+			}
+		}
+	}
+	if out.ResponsiblePersonPhone == nil {
+		if m := reRespFIO.FindStringSubmatch(p); m != nil {
+			if v := normalizePhone(m[1]); v != nil {
+				out.ResponsiblePersonPhone = v
+			}
+		}
+	}
 }
 
 func fillFromText(out *model.Participant, p string) {

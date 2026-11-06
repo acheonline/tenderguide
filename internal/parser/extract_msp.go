@@ -36,6 +36,7 @@ func extractMSPInfo(inputs []Input) *model.MSPInfo {
 
 	for _, in := range inputs {
 		for _, p := range in.Paragraphs {
+			p = stripGarbage(p)
 			if out.Contracts44223Count == nil {
 				if m := reContractsCount.FindStringSubmatch(p); m != nil {
 					if n, err := strconv.ParseInt(m[1], 10, 64); err == nil {
@@ -53,10 +54,17 @@ func extractMSPInfo(inputs []Input) *model.MSPInfo {
 		}
 		for _, tbl := range in.Tables {
 			for _, row := range tbl {
-				if len(row.Cells) < 2 {
+				if len(row.Cells) == 0 {
 					continue
 				}
 				joined := strings.Join(row.Cells, " ")
+				if out.InRNP == nil && strings.Contains(joined, "Реестр недобросовестных") {
+					b := !strings.Contains(strings.ToLower(joined), "нет")
+					out.InRNP = &b
+				}
+				if len(row.Cells) < 2 {
+					continue
+				}
 				last := strings.TrimSpace(row.Cells[len(row.Cells)-1])
 				if strings.Contains(joined, "Среднесписочная численность") && out.AverageHeadcount == nil {
 					if n, err := strconv.ParseInt(onlyDigits(last), 10, 64); err == nil && n > 0 {

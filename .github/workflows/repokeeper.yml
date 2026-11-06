@@ -10,7 +10,7 @@ on:
 
 jobs:
   agent:
-    runs-on: [self-hosted, repokeeper]
+    runs-on: [self-hosted, tenderguide]
     if: |
       (
         github.event_name == 'issue_comment' &&

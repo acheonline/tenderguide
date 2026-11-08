@@ -102,6 +102,7 @@ go run ./cmd/tenderguide show --request testdata --db /tmp/tenderguide.db
 # ...
 
 go run ./cmd/tenderguide show --request testdata --db /tmp/tenderguide.db --format json
+# {"request":{"request_id":"testdata",...}}
 ```
 
 В формате `text` `NULL`-поля выводятся как `—`, пустые секции — с пометкой `(нет)`.

@@ -4,38 +4,21 @@ CLI-сервис для загрузки и разбора пакета заяв
 
 ## Getting Started
 
-### Требования
+Краткое введение: требования, установка зависимостей и команды запуска описаны в разделах ниже — [Requirements](#requirements), [How to run](#how-to-run), [How to test](#how-to-test).
 
-- Go 1.22+
-- `make` (опционально, для удобных команд)
-- SQLite (драйвер `modernc.org/sqlite` — pure Go, без CGO, отдельная установка не требуется)
-
-### Клонирование и установка зависимостей
-
-```bash
-git clone https://github.com/acheonline/tenderguide.git
-cd tenderguide
-go mod download
-```
-
-### Локальный запуск
-
-```bash
-go run ./cmd/tenderguide load --dir ./testdata --db /tmp/tenderguide.db
-go run ./cmd/tenderguide show --request testdata --db /tmp/tenderguide.db
-```
-
-## How to run
-
-### Требования
+## Requirements
 
 - Go 1.22+ (см. `go.mod`)
 - SQLite-драйвер `modernc.org/sqlite` — pure Go, без CGO, отдельная установка не требуется
 - `make` не используется — в репозитории нет `Makefile`
 
+## How to run
+
 ### Установка зависимостей
 
 ```bash
+git clone https://github.com/acheonline/tenderguide.git
+cd tenderguide
 go mod download
 ```
 
@@ -73,23 +56,6 @@ go vet ./...
 ```
 
 Тестовые данные для интеграционных сценариев (`load`/`show`) уже лежат в репозитории в каталоге `testdata/` — дополнительная подготовка не требуется. Отдельного разделения на юнит/интеграционные/e2e-категории и отдельных целей `make test` нет.
-
-## Требования
-
-- Go 1.22+
-- SQLite (драйвер `modernc.org/sqlite` — pure Go, без CGO)
-
-## Сборка
-
-```bash
-go build -o tenderguide ./cmd/tenderguide
-```
-
-Или запуск без сборки:
-
-```bash
-go run ./cmd/tenderguide <command> [flags]
-```
 
 ## Использование
 
@@ -211,18 +177,6 @@ testdata/               пример комплекта DOCX
 ```
 
 ## Разработка
-
-### Тесты
-
-```bash
-go test ./...
-```
-
-### Линт
-
-```bash
-go vet ./...
-```
 
 ### Проверка результата в БД
 

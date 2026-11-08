@@ -34,6 +34,16 @@ jobs:
       issues: write
       pull-requests: write
     steps:
+      - name: Save issue number
+        if: github.event_name == 'issues' && github.event.label.name == 'agent-todo'
+        run: echo "${{ github.event.issue.number }}" > issue_number.txt
+
+      - name: Upload issue number artifact
+        if: github.event_name == 'issues' && github.event.label.name == 'agent-todo'
+        uses: actions/upload-artifact@v4
+        with:
+          name: repokeeper-issue-number
+          path: issue_number.txt
       - name: Checkout
         uses: actions/checkout@v4
 

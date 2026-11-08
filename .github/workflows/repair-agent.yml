@@ -1,0 +1,68 @@
+name: Repair Agent (RepoKeeper Failure Handler)
+
+on:
+  workflow_run:
+    workflows: ["RepoKeeper Agent"]
+    types: [completed]
+
+permissions:
+  actions: read
+  issues: write
+  contents: read
+  pull-requests: read
+
+jobs:
+  repair:
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Клонировать репозиторий
+        uses: actions/checkout@v4
+
+      - name: Установить Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Установить зависимости
+        run: pip install requests
+
+      - name: Скачать artifact с номером issue
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          run_id: ${{ github.event.workflow_run.id }}
+          name: repokeeper-issue-number
+          path: /tmp/repair
+
+      - name: Прочитать номер issue
+        id: read_issue
+        run: |
+          if [ -f /tmp/repair/issue_number.txt ]; then
+            echo "issue_number=$(cat /tmp/repair/issue_number.txt)" >> "$GITHUB_OUTPUT"
+          else
+            echo "В artifact не найден issue_number.txt"
+            exit 1
+          fi
+
+      - name: Скачать логи упавшего запуска
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          mkdir -p /tmp/repair
+          gh run view "$RUN_ID" --log-failed > /tmp/repair/failed.log 2>&1 || \
+          gh run view "$RUN_ID" --log > /tmp/repair/failed.log 2>&1
+          echo "Размер лога: $(wc -c < /tmp/repair/failed.log) байт"
+
+      - name: Запустить агента починки
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ steps.read_issue.outputs.issue_number }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          LLM_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}   # используем существующий ключ DeepSeek
+        run: |
+          python scripts/repair_agent.py \
+            --log-file /tmp/repair/failed.log \
+            --issue-number "$ISSUE_NUMBER" \
+            --run-id "$RUN_ID"

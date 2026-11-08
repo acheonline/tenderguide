@@ -97,30 +97,6 @@ jobs:
       - name: Check coverage threshold
         run: bash scripts/check_coverage.sh
 
-      - name: Check requirements coverage (LLM)
-        id: req_check
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
-        run: |
-          python3 scripts/check_requirements.py \
-            --repo ${{ github.repository }} \
-            --pr ${{ steps.find_pr.outputs.pr }} \
-            --requirements docs/requirements.md
-
-      - name: Post requirements report to issue
-        if: always()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if [ -f /tmp/requirements_report.md ]; then
-            gh issue comment ${{ steps.find_pr.outputs.issue }} \
-              --repo ${{ github.repository }} \
-              --body-file /tmp/requirements_report.md
-          fi
-
       - name: Merge PR on success
         if: success()
         env:

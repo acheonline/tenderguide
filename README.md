@@ -114,6 +114,8 @@ go run ./cmd/tenderguide --version
 # tenderguide dev
 ```
 
+Версию можно переопределить при сборке: `go build -ldflags "-X main.version=1.2.3" -o tenderguide ./cmd/tenderguide`.
+
 ## Что извлекается
 
 Поля группируются по таблицам.
@@ -207,6 +209,8 @@ sqlite3 /tmp/tenderguide.db "PRAGMA table_info(participants);"
 
 - `github.com/fumiama/go-docx` — чтение DOCX (AGPL-3.0, согласовано мейнтейнером).
 - `modernc.org/sqlite` — SQLite-драйвер (pure Go, без CGO).
+
+Все зависимости ставятся через `go mod download`.
 
 ## Вне скоупа текущей версии
 

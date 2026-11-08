@@ -1,0 +1,102 @@
+name: PR Verifier (Auto-Regression)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  verify:
+    runs-on: [self-hosted, tenderguide]
+
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Verify Go toolchain
+        run: go version
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Build
+        run: go build -o /tmp/tenderguide ./cmd/tenderguide
+
+      - name: Run load against testdata
+        id: load
+        run: |
+          set -e
+          rm -f /tmp/verify.db
+          OUTPUT=$(/tmp/tenderguide load --dir ./testdata --db /tmp/verify.db 2>&1)
+          echo "$OUTPUT"
+          echo "$OUTPUT" | grep -q "OK: request" || {
+            echo "FAIL: load output missing 'OK: request'"
+            exit 1
+          }
+
+      - name: Check database after load
+        id: db_check
+        run: |
+          set -e
+          COUNT=$(sqlite3 /tmp/verify.db "SELECT COUNT(*) FROM requests;")
+          echo "requests count: $COUNT"
+          [ "$COUNT" -ge 1 ] || {
+            echo "FAIL: no rows in requests table"
+            exit 1
+          }
+          RID=$(sqlite3 /tmp/verify.db "SELECT request_id FROM requests LIMIT 1;")
+          echo "request_id: $RID"
+          [ "$RID" = "testdata" ] || {
+            echo "FAIL: request_id expected 'testdata', got '$RID'"
+            exit 1
+          }
+
+      - name: Run show with json format
+        id: show
+        run: |
+          set -e
+          JSON=$(/tmp/tenderguide show --request testdata --db /tmp/verify.db --format json 2>&1)
+          echo "$JSON" | head -20
+          echo "$JSON" | python3 -c "
+  import sys, json
+try:
+  data = json.load(sys.stdin)
+except Exception as e:
+  print(f'FAIL: invalid JSON output: {e}')
+    sys.exit(1)
+if not isinstance(data, (dict, list)):
+    print('FAIL: JSON root is not object or array')
+  sys.exit(1)
+  "
+          echo "JSON output is valid"
+
+- name: Run tests
+  id: tests
+  run: go test ./... 2>&1
+
+- name: Approve PR on success
+  if: success()
+  env:
+    GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  run: |
+    gh pr review ${{ github.event.pull_request.number }} \
+      --repo ${{ github.repository }} \
+      --approve \
+      --body "✅ Auto-regression passed: build, load, DB check, show, and tests all succeeded."
+
+- name: Request changes on failure
+  if: failure()
+  env:
+    GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  run: |
+    gh pr review ${{ github.event.pull_request.number }} \
+      --repo ${{ github.repository }} \
+      --request-changes \
+      --body "❌ Auto-regression failed. Check the workflow logs for details. The failing step is marked red above."

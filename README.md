@@ -1,5 +1,7 @@
 # tenderguide
 
+CLI для автоматического разбора заявок на конкурс из DOCX в SQLite.
+
 CLI-сервис для загрузки и разбора пакета заявки на конкурс. Читает директорию с DOCX-файлами комплекта (формы 1–13), извлекает атрибуты заявки, участника, заказчика, банковских реквизитов, МСП-статуса, штата и бенефициаров, сохраняет в SQLite.
 
 ## Getting Started
@@ -211,6 +213,39 @@ sqlite3 /tmp/tenderguide.db "PRAGMA table_info(participants);"
 - `modernc.org/sqlite` — SQLite-драйвер (pure Go, без CGO).
 
 Все зависимости ставятся через `go mod download`.
+
+## Automation
+
+### Overview
+
+- issue + метка `agent-todo` → `RepoKeeper Agent` (Pi backend, до 5 попыток исправления) создаёт PR в ветке `repokeeper/issue-<N>-...`
+- `PR Verifier (Auto-Regression)` запускается по `workflow_run` после успешного завершения `RepoKeeper Agent`
+- Проверяет: сборку, `load` на `testdata/`, содержимое БД, `show --format json`, `go test ./...`
+- При успехе: `gh pr merge --squash --delete-branch` + `gh issue close --reason completed`
+- При сбое `RepoKeeper Agent`: `Repair Agent` анализирует лог, переписывает issue через LLM, закрывает старый (not planned) и создаёт новый с `agent-todo` (до 3 попыток)
+
+### Labels
+
+- `agent-todo` (на issue) — запускает `RepoKeeper Agent` для создания PR
+- `agent-fix` (на PR) — запускает `RepoKeeper Agent` в режиме исправления PR
+
+### Workflows
+
+- `.github/workflows/repokeeper.yml` — `RepoKeeper Agent`: реализует issue или исправляет PR. Бэкенд `pi`, до 5 попыток исправления тестов. Конфиг — `repokeeper.yml` в корне.
+- `.github/workflows/pr-verifier.yml` — `PR Verifier (Auto-Regression)`: запускается по `workflow_run` после `RepoKeeper Agent`. Проверяет сборку, `load`, БД, `show --format json`, `go test ./...`. При успехе мерджит PR и закрывает issue.
+- `.github/workflows/repair-agent.yml` — `Repair Agent (RepoKeeper Failure Handler)`: запускается по `workflow_run` при сбое `RepoKeeper Agent`. Анализирует лог, переписывает issue через LLM, закрывает старый (not planned) и создаёт новый с `agent-todo`.
+
+### Where to look on failure
+
+- **RepoKeeper упал** — вкладка Actions → `RepoKeeper Agent` → шаг `Run RepoKeeper Agent` → искать `Verification failed` в логе.
+- **Repair Agent не сработал** — проверить, что `conclusion == failure` (а не `success` с отказом от реализации).
+- **PR Verifier упал** — Actions → `PR Verifier (Auto-Regression)` → красный шаг указывает, что именно не прошло.
+- **PR не найден** — проверить префикс ветки в `find_pr` (ожидается `repokeeper/issue-<N>-`), увеличить таймаут (`seq 1 30`).
+- **Merge не прошёл** — проверить `permissions: contents: write` в `pr-verifier.yml` и отсутствие branch protection с required approve.
+
+### Self-hosted runner
+
+Workflow запускаются на self-hosted runner с метками `[self-hosted, tenderguide]`. Требования к runner: Go 1.22+, `sqlite3`, `python3`, `gh` CLI, Node.js 22 (для Pi-бэкенда RepoKeeper).
 
 ## Вне скоупа текущей версии
 

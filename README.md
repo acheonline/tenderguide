@@ -107,6 +107,13 @@ go run ./cmd/tenderguide show --request testdata --db /tmp/tenderguide.db --form
 
 В формате `text` `NULL`-поля выводятся как `—`, пустые секции — с пометкой `(нет)`.
 
+### `--version` — вывести версию
+
+```bash
+go run ./cmd/tenderguide --version
+# tenderguide dev
+```
+
 ## Что извлекается
 
 Поля группируются по таблицам.

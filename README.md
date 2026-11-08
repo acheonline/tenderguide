@@ -114,6 +114,8 @@ go run ./cmd/tenderguide --version
 # tenderguide dev
 ```
 
+Версию можно переопределить при сборке: `go build -ldflags "-X main.version=1.2.3" -o tenderguide ./cmd/tenderguide`.
+
 ## Что извлекается
 
 Поля группируются по таблицам.

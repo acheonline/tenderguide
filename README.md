@@ -210,6 +210,8 @@ sqlite3 /tmp/tenderguide.db "PRAGMA table_info(participants);"
 - `github.com/fumiama/go-docx` — чтение DOCX (AGPL-3.0, согласовано мейнтейнером).
 - `modernc.org/sqlite` — SQLite-драйвер (pure Go, без CGO).
 
+Все зависимости ставятся через `go mod download`.
+
 ## Вне скоупа текущей версии
 
 - PDF, XLSX, сканы, OCR.

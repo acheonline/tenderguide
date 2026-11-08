@@ -25,6 +25,55 @@ go run ./cmd/tenderguide load --dir ./testdata --db /tmp/tenderguide.db
 go run ./cmd/tenderguide show --request testdata --db /tmp/tenderguide.db
 ```
 
+## How to run
+
+### Требования
+
+- Go 1.22+ (см. `go.mod`)
+- SQLite-драйвер `modernc.org/sqlite` — pure Go, без CGO, отдельная установка не требуется
+- `make` не используется — в репозитории нет `Makefile`
+
+### Установка зависимостей
+
+```bash
+go mod download
+```
+
+### Запуск
+
+Без сборки:
+
+```bash
+go run ./cmd/tenderguide load --dir ./testdata --db /tmp/tenderguide.db
+go run ./cmd/tenderguide show --request testdata --db /tmp/tenderguide.db
+```
+
+С предварительной сборкой бинарника:
+
+```bash
+go build -o tenderguide ./cmd/tenderguide
+./tenderguide load --dir ./testdata --db /tmp/tenderguide.db
+./tenderguide show --request testdata --db /tmp/tenderguide.db
+```
+
+После `load` в stdout выводится `OK: request <id> saved (id=<n>)`, данные сохраняются в SQLite-файл по пути `--db` (по умолчанию `./tenderguide.db`). После `show` в stdout печатается карточка заявки в формате `text` или `json`. Отдельный конфигурационный файл и переменные окружения не требуются — всё задаётся флагами CLI.
+
+## How to test
+
+Все тесты запускаются стандартной командой Go:
+
+```bash
+go test ./...
+```
+
+Дополнительно можно прогнать статический анализ:
+
+```bash
+go vet ./...
+```
+
+Тестовые данные для интеграционных сценариев (`load`/`show`) уже лежат в репозитории в каталоге `testdata/` — дополнительная подготовка не требуется. Отдельного разделения на юнит/интеграционные/e2e-категории и отдельных целей `make test` нет.
+
 ## Требования
 
 - Go 1.22+

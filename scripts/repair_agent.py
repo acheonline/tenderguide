@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Repair Agent: анализирует лог упавшего RepoKeeper, переписывает issue через LLM,
-публикует diff, удаляет старый issue и создаёт новый с меткой agent-todo.
+публикует diff, закрывает старый issue (not planned) и создаёт новый с меткой agent-todo.
 """
 
 import argparse
@@ -46,9 +46,12 @@ def comment_issue(repo: str, number: str, body: str) -> None:
     gh("issue", "comment", number, "--repo", repo, "--body-file", path)
 
 
-def delete_issue(repo: str, number: str) -> None:
-    # REST API не умеет удалять issue; gh issue delete использует GraphQL [citation:1][citation:7]
-    gh("issue", "delete", number, "--repo", repo, "--yes")
+def close_issue(repo: str, number: str, comment: str = "") -> None:
+    """Закрывает issue с причиной 'not planned'. Не требует прав администратора."""
+    cmd = ["issue", "close", number, "--repo", repo, "--reason", "not planned"]
+    if comment:
+        cmd.extend(["--comment", comment])
+    gh(*cmd)
 
 
 def create_issue(repo: str, title: str, body: str, labels: list[str]) -> str:
@@ -57,10 +60,9 @@ def create_issue(repo: str, title: str, body: str, labels: list[str]) -> str:
         f.write(body)
     cmd = ["issue", "create", "--repo", repo,
            "--title", title, "--body-file", path]
-    for lbl in dict.fromkeys(labels):  # уникальные метки, порядок сохранён
+    for lbl in dict.fromkeys(labels):
         cmd.extend(["--label", lbl])
     out = gh(*cmd)
-    # gh issue create печатает URL созданного issue
     return out.splitlines()[-1] if out else ""
 
 
@@ -186,7 +188,7 @@ def main() -> int:
 
     new_body = set_attempt(new_body, attempt + 1)
 
-    # 5. Diff-комментарий (точка контроля)
+    # 5. Diff-комментарий
     diff = "\n".join(
         difflib.unified_diff(
             (old["body"] or "").splitlines(),
@@ -205,13 +207,17 @@ def main() -> int:
         )
     except RuntimeError as e:
         print(f"Не удалось опубликовать diff-комментарий: {e}", file=sys.stderr)
-        # продолжаем: комментарий не критичен
 
-    # 6. Удаление старого и создание нового
+    # 6. Закрываем старый issue (not planned) и создаём новый
     try:
-        delete_issue(repo, args.issue_number)
+        close_issue(
+            repo,
+            args.issue_number,
+            f"Автоматически заменён новым issue после сбоя RepoKeeper "
+            f"(попытка {attempt + 1}/{max_attempts}).",
+        )
     except RuntimeError as e:
-        print(f"Не удалось удалить issue #{args.issue_number}: {e}", file=sys.stderr)
+        print(f"Не удалось закрыть issue #{args.issue_number}: {e}", file=sys.stderr)
         return 1
 
     labels = ["agent-todo"] + [l for l in old["labels"] if l != "agent-todo"]

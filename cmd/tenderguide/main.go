@@ -6,6 +6,8 @@ import (
 	"os"
 )
 
+var version = "dev"
+
 func main() {
 	ctx := context.Background()
 	if len(os.Args) < 2 {
@@ -15,6 +17,9 @@ func main() {
 
 	var code int
 	switch os.Args[1] {
+	case "--version", "-version", "version":
+		fmt.Printf("tenderguide %s\n", version)
+		code = 0
 	case "load":
 		code = runLoad(ctx, os.Args[2:])
 	case "load-doc":

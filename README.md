@@ -2,6 +2,29 @@
 
 CLI-сервис для загрузки и разбора пакета заявки на конкурс. Читает директорию с DOCX-файлами комплекта (формы 1–13), извлекает атрибуты заявки, участника, заказчика, банковских реквизитов, МСП-статуса, штата и бенефициаров, сохраняет в SQLite.
 
+## Getting Started
+
+### Требования
+
+- Go 1.22+
+- `make` (опционально, для удобных команд)
+- SQLite (драйвер `modernc.org/sqlite` — pure Go, без CGO, отдельная установка не требуется)
+
+### Клонирование и установка зависимостей
+
+```bash
+git clone https://github.com/acheonline/tenderguide.git
+cd tenderguide
+go mod download
+```
+
+### Локальный запуск
+
+```bash
+go run ./cmd/tenderguide load --dir ./testdata --db /tmp/tenderguide.db
+go run ./cmd/tenderguide show --request testdata --db /tmp/tenderguide.db
+```
+
 ## Требования
 
 - Go 1.22+

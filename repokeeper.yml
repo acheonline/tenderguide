@@ -1,5 +1,8 @@
 backend: pi
 
+agent:
+  max_fix_attempts: 5
+
 style:
   code_style: |
     Go 1.22.

@@ -1,23 +1,64 @@
 name: PR Verifier (Auto-Regression)
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
+  workflow_run:
+    workflows: ["RepoKeeper Agent"]
+    types: [completed]
 
 permissions:
   contents: write
   pull-requests: write
   issues: write
+  actions: read
 
 jobs:
   verify:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: [self-hosted, tenderguide]
 
     steps:
+      - name: Checkout base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_branch == 'main' && 'main' || 'main' }}
+          fetch-depth: 0
+
+      - name: Get issue number from artifact
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          run_id: ${{ github.event.workflow_run.id }}
+          name: repokeeper-issue-number
+          path: /tmp/repair
+
+      - name: Find PR for this issue
+        id: find_pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ISSUE=$(cat /tmp/repair/issue_number.txt)
+          echo "issue=$ISSUE" >> "$GITHUB_OUTPUT"
+
+          # Ждём, пока PR появится (RepoKeeper создаёт его чуть позже завершения workflow)
+          for i in $(seq 1 30); do
+            PR=$(gh pr list --repo ${{ github.repository }} --state open \
+              --json number,headRefName \
+              --jq ".[] | select(.headRefName | startswith(\"repokeeper/issue-${ISSUE}-\")) | .number" | head -1)
+            if [ -n "$PR" ]; then
+              echo "pr=$PR" >> "$GITHUB_OUTPUT"
+              echo "Found PR #$PR"
+              exit 0
+            fi
+            echo "Waiting for PR... ($i/30)"
+            sleep 10
+          done
+
+          echo "FAIL: PR not found for issue $ISSUE"
+          exit 1
+
       - name: Checkout PR head
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: refs/pull/${{ steps.find_pr.outputs.pr }}/head
           fetch-depth: 0
 
       - name: Verify Go toolchain
@@ -30,36 +71,24 @@ jobs:
         run: go build -o /tmp/tenderguide ./cmd/tenderguide
 
       - name: Run load against testdata
-        id: load
         run: |
           set -e
           rm -f /tmp/verify.db
           OUTPUT=$(/tmp/tenderguide load --dir ./testdata --db /tmp/verify.db 2>&1)
           echo "$OUTPUT"
-          echo "$OUTPUT" | grep -q "OK: request" || {
-            echo "FAIL: load output missing 'OK: request'"
-            exit 1
-          }
+          echo "$OUTPUT" | grep -q "OK: request"
 
       - name: Check database after load
-        id: db_check
         run: |
           set -e
           COUNT=$(sqlite3 /tmp/verify.db "SELECT COUNT(*) FROM requests;")
           echo "requests count: $COUNT"
-          [ "$COUNT" -ge 1 ] || {
-            echo "FAIL: no rows in requests table"
-            exit 1
-          }
+          [ "$COUNT" -ge 1 ]
           RID=$(sqlite3 /tmp/verify.db "SELECT request_id FROM requests LIMIT 1;")
           echo "request_id: $RID"
-          [ "$RID" = "testdata" ] || {
-            echo "FAIL: request_id expected 'testdata', got '$RID'"
-            exit 1
-          }
+          [ "$RID" = "testdata" ]
 
       - name: Run show with json format
-        id: show
         run: |
           set -e
           JSON=$(/tmp/tenderguide show --request testdata --db /tmp/verify.db --format json 2>&1)
@@ -67,23 +96,32 @@ jobs:
           echo "$JSON" | python3 scripts/check_json.py
 
       - name: Run tests
-        id: tests
         run: go test ./... 2>&1
 
-      - name: Merge PR on success
+      - name: Merge PR and close issue
         if: success()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ steps.find_pr.outputs.pr }}
+          ISSUE: ${{ steps.find_pr.outputs.issue }}
         run: |
-          gh pr merge ${{ github.event.pull_request.number }} \
-            --repo ${{ github.repository }} \
-            --squash --delete-branch
+          gh pr merge "$PR" --repo ${{ github.repository }} --squash --delete-branch
+          gh issue close "$ISSUE" --repo ${{ github.repository }} \
+            --reason "completed" \
+            --comment "✅ Merged automatically after auto-regression passed (PR #$PR)."
 
       - name: Comment on failure
         if: failure()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ steps.find_pr.outputs.pr }}
+          ISSUE: ${{ steps.find_pr.outputs.issue }}
         run: |
-          gh pr comment ${{ github.event.pull_request.number }} \
-            --repo ${{ github.repository }} \
-            --body "❌ Auto-regression failed. Check the workflow logs for details."
+          if [ -n "$PR" ]; then
+            gh pr comment "$PR" --repo ${{ github.repository }} \
+              --body "❌ Auto-regression failed. Check workflow logs."
+          fi
+          if [ -n "$ISSUE" ]; then
+            gh issue comment "$ISSUE" --repo ${{ github.repository }} \
+              --body "❌ Auto-regression failed for the created PR. Manual review needed."
+          fi

@@ -64,39 +64,28 @@ jobs:
           set -e
           JSON=$(/tmp/tenderguide show --request testdata --db /tmp/verify.db --format json 2>&1)
           echo "$JSON" | head -20
-          echo "$JSON" | python3 -c "
-  import sys, json
-try:
-  data = json.load(sys.stdin)
-except Exception as e:
-  print(f'FAIL: invalid JSON output: {e}')
-    sys.exit(1)
-if not isinstance(data, (dict, list)):
-    print('FAIL: JSON root is not object or array')
-  sys.exit(1)
-  "
-          echo "JSON output is valid"
+          echo "$JSON" | python3 scripts/check_json.py
 
-- name: Run tests
-  id: tests
-  run: go test ./... 2>&1
+      - name: Run tests
+        id: tests
+        run: go test ./... 2>&1
 
-- name: Approve PR on success
-  if: success()
-  env:
-    GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  run: |
-    gh pr review ${{ github.event.pull_request.number }} \
-      --repo ${{ github.repository }} \
-      --approve \
-      --body "✅ Auto-regression passed: build, load, DB check, show, and tests all succeeded."
+      - name: Approve PR on success
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr review ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} \
+            --approve \
+            --body "✅ Auto-regression passed: build, load, DB check, show, and tests all succeeded."
 
-- name: Request changes on failure
-  if: failure()
-  env:
-    GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  run: |
-    gh pr review ${{ github.event.pull_request.number }} \
-      --repo ${{ github.repository }} \
-      --request-changes \
-      --body "❌ Auto-regression failed. Check the workflow logs for details. The failing step is marked red above."
+      - name: Request changes on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr review ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} \
+            --request-changes \
+            --body "❌ Auto-regression failed. Check the workflow logs for details. The failing step is marked red above."

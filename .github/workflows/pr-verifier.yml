@@ -20,7 +20,6 @@ jobs:
       - name: Checkout base branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_branch == 'main' && 'main' || 'main' }}
           fetch-depth: 0
 
       - name: Get issue number from artifact
@@ -37,8 +36,6 @@ jobs:
         run: |
           ISSUE=$(cat /tmp/repair/issue_number.txt)
           echo "issue=$ISSUE" >> "$GITHUB_OUTPUT"
-
-          # Ждём, пока PR появится (RepoKeeper создаёт его чуть позже завершения workflow)
           for i in $(seq 1 30); do
             PR=$(gh pr list --repo ${{ github.repository }} --state open \
               --json number,headRefName \
@@ -51,7 +48,6 @@ jobs:
             echo "Waiting for PR... ($i/30)"
             sleep 10
           done
-
           echo "FAIL: PR not found for issue $ISSUE"
           exit 1
 
@@ -98,30 +94,27 @@ jobs:
       - name: Run tests
         run: go test ./... 2>&1
 
-      - name: Merge PR and close issue
+      - name: Check coverage threshold
+        run: bash scripts/check_coverage.sh
+
+      - name: Merge PR on success
         if: success()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR: ${{ steps.find_pr.outputs.pr }}
-          ISSUE: ${{ steps.find_pr.outputs.issue }}
         run: |
-          gh pr merge "$PR" --repo ${{ github.repository }} --squash --delete-branch
-          gh issue close "$ISSUE" --repo ${{ github.repository }} \
+          gh pr merge ${{ steps.find_pr.outputs.pr }} \
+            --repo ${{ github.repository }} \
+            --squash --delete-branch
+          gh issue close ${{ steps.find_pr.outputs.issue }} \
+            --repo ${{ github.repository }} \
             --reason "completed" \
-            --comment "✅ Merged automatically after auto-regression passed (PR #$PR)."
+            --comment "✅ Merged automatically after auto-regression and coverage checks passed (PR #${{ steps.find_pr.outputs.pr }})."
 
       - name: Comment on failure
         if: failure()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR: ${{ steps.find_pr.outputs.pr }}
-          ISSUE: ${{ steps.find_pr.outputs.issue }}
         run: |
-          if [ -n "$PR" ]; then
-            gh pr comment "$PR" --repo ${{ github.repository }} \
-              --body "❌ Auto-regression failed. Check workflow logs."
-          fi
-          if [ -n "$ISSUE" ]; then
-            gh issue comment "$ISSUE" --repo ${{ github.repository }} \
-              --body "❌ Auto-regression failed for the created PR. Manual review needed."
-          fi
+          gh issue comment ${{ steps.find_pr.outputs.issue }} \
+            --repo ${{ github.repository }} \
+            --body "❌ Auto-regression or coverage check failed. PR #${{ steps.find_pr.outputs.pr }} needs manual review."

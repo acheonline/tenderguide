@@ -1,11 +1,11 @@
 name: PR Verifier (Auto-Regression)
 
 on:
-  pull_request_target:
+  pull_request:
     types: [opened, synchronize, reopened]
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
   issues: write
 
@@ -70,22 +70,20 @@ jobs:
         id: tests
         run: go test ./... 2>&1
 
-      - name: Approve PR on success
+      - name: Merge PR on success
         if: success()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh pr review ${{ github.event.pull_request.number }} \
+          gh pr merge ${{ github.event.pull_request.number }} \
             --repo ${{ github.repository }} \
-            --approve \
-            --body "✅ Auto-regression passed: build, load, DB check, show, and tests all succeeded."
+            --squash --delete-branch
 
-      - name: Request changes on failure
+      - name: Comment on failure
         if: failure()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh pr review ${{ github.event.pull_request.number }} \
+          gh pr comment ${{ github.event.pull_request.number }} \
             --repo ${{ github.repository }} \
-            --request-changes \
-            --body "❌ Auto-regression failed. Check the workflow logs for details. The failing step is marked red above."
+            --body "❌ Auto-regression failed. Check the workflow logs for details."

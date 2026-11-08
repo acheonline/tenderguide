@@ -225,8 +225,6 @@ sqlite3 /tmp/tenderguide.db "PRAGMA table_info(participants);"
 - Проверяет: сборку, `load` на `testdata/`, содержимое БД, `show --format json`, `go test ./...`
 - При успехе: `gh pr merge --squash --delete-branch` + `gh issue close --reason completed`
 - При сбое `RepoKeeper Agent`: `Repair Agent` анализирует лог, переписывает issue через LLM, закрывает старый (not planned) и создаёт новый с `agent-todo` (до 3 попыток)
-- `PR Verifier` дополнительно сверяет diff PR с `docs/requirements.md` через LLM и публикует таблицу покрытия требований в issue перед мерджем.
-- `PR Verifier` сверяет diff PR с `docs/requirements.md` через LLM и публикует таблицу покрытия требований в issue перед мерджем.
 
 ### Labels
 

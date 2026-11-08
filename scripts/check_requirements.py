@@ -34,7 +34,7 @@ def load_requirements(path: str) -> list[dict]:
 
 
 def call_llm(diff: str, reqs: list[dict], api_key: str) -> dict:
-    base_url = os.environ.get("LLM_BASE_URL", "https://api.deepseek.com").rstrip("/")
+    base_url = (os.environ.get("LLM_BASE_URL") or "https://api.deepseek.com").rstrip("/")
     req_list = "\n".join(f"- {r['id']}: {r['title']}" for r in reqs)
     prompt = f"""Ты — инженер по требованиям. Сравни diff pull request с требованиями.
 
